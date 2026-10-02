@@ -9,7 +9,7 @@
   body { display: flex; flex-direction: column; height: 100dvh; }
   h1 { margin: 0; padding: 8px 12px 0; font-weight: 500; letter-spacing: 0.18em; font-size: 14px; text-transform: uppercase; text-align: center; }
   #wrap { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
-  canvas { display: block; background: #2a2418; cursor: crosshair; width: 100%; height: 100%; object-fit: contain; touch-action: none; }
+  canvas { display: block; background: #8ea0ad; cursor: crosshair; width: 100%; height: 100%; touch-action: none; }
   #hint { display: none; }
   #controls { display: flex; gap: 8px; padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); background: #1a1814; align-items: stretch; }
   #controls button {
@@ -54,14 +54,33 @@ addEventListener("keyup", e => { keys[e.code] = false; });
 let mouse = { x: W * 0.7, y: H * 0.45, down: false };
 canvas.addEventListener("mousemove", e => { canvasPoint(e.clientX, e.clientY); });
 let aimed = false;
+let view = { s: 1, ox: 0, oy: 0 };
+function fitCanvas() {
+  const wrap = document.getElementById("wrap");
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const r = wrap.getBoundingClientRect();
+  const w = Math.max(2, Math.floor(r.width * dpr));
+  const h = Math.max(2, Math.floor(r.height * dpr));
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+  }
+}
+function updateView() {
+  const focusX = player && state === "play" ? player.x : 145;
+  const s = Math.max(canvas.height / 320, canvas.width / 520);
+  view.s = s;
+  const minOx = canvas.width - (W + 30) * s;
+  const maxOx = 30 * s;
+  view.ox = Math.min(maxOx, Math.max(minOx, canvas.width / 2 - focusX * s));
+  view.oy = canvas.height * 0.58 - 430 * s;
+}
 function canvasPoint(clientX, clientY) {
   const r = canvas.getBoundingClientRect();
-  const scale = Math.min(r.width / W, r.height / H) || 1;
-  const drawnW = W * scale, drawnH = H * scale;
-  const ox = r.left + (r.width - drawnW) / 2;
-  const oy = r.top + (r.height - drawnH) / 2;
-  mouse.x = (clientX - ox) / scale;
-  mouse.y = (clientY - oy) / scale;
+  const px = (clientX - r.left) * (canvas.width / r.width);
+  const py = (clientY - r.top) * (canvas.height / r.height);
+  mouse.x = (px - view.ox) / view.s;
+  mouse.y = (py - view.oy) / view.s;
   aimed = true;
 }
 function aimAtNearest() {
@@ -417,72 +436,88 @@ function sky() {
 
 function drawSoldier(x, crouched, facing, color, hp, maxHp) {
   ctx.save();
-  ctx.translate(x, crouched ? 500 : 445);
-  ctx.scale(facing, 1);
+  ctx.translate(x, crouched ? 412 : 428);
+  ctx.scale(facing * 2.1, 2.1);
+  ctx.lineWidth = 1.4;
+  ctx.strokeStyle = "#140f0a";
   ctx.fillStyle = color;
-  // body
-  ctx.fillRect(-7, crouched ? -18 : -36, 14, crouched ? 22 : 34);
-  ctx.fillStyle = "#d7c4a2";
   ctx.beginPath();
-  ctx.arc(0, crouched ? -24 : -44, 7, 0, Math.PI * 2);
+  ctx.roundRect ? ctx.roundRect(-9, crouched ? -18 : -34, 18, crouched ? 22 : 36, 3) : ctx.rect(-9, crouched ? -18 : -34, 18, crouched ? 22 : 36);
   ctx.fill();
-  // helmet
-  ctx.fillStyle = "#3e4632";
+  ctx.stroke();
+  ctx.fillStyle = "#f3d2b4";
   ctx.beginPath();
-  ctx.ellipse(0, crouched ? -28 : -48, 9, 5, 0, Math.PI, 0);
+  ctx.arc(0, crouched ? -26 : -42, 8, 0, Math.PI * 2);
   ctx.fill();
-  // rifle
-  ctx.fillStyle = "#2b2418";
-  ctx.fillRect(4, crouched ? -16 : -30, 26, 3);
+  ctx.stroke();
+  ctx.fillStyle = "#243028";
+  ctx.beginPath();
+  ctx.ellipse(1, crouched ? -31 : -48, 11, 6, 0, Math.PI, 0);
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = "#1c1610";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(6, crouched ? -12 : -24);
+  ctx.lineTo(32, crouched ? -16 : -28);
+  ctx.stroke();
   ctx.restore();
   if (maxHp) {
-    ctx.fillStyle = "#2a2018";
-    ctx.fillRect(x - 14, crouched ? 458 : 392, 28, 4);
-    ctx.fillStyle = hp > maxHp * 0.35 ? "#7ea14a" : "#c4553a";
-    ctx.fillRect(x - 14, crouched ? 458 : 392, 28 * Math.max(0, hp / maxHp), 4);
+    ctx.fillStyle = "#1a140e";
+    ctx.fillRect(x - 16, crouched ? 392 : 360, 32, 5);
+    ctx.fillStyle = hp > maxHp * 0.35 ? "#8eae52" : "#c4553a";
+    ctx.fillRect(x - 16, crouched ? 392 : 360, 32 * Math.max(0, hp / maxHp), 5);
   }
 }
 
 function hud() {
+  const cw = canvas.width;
   ctx.fillStyle = "rgba(18,16,12,.72)";
-  ctx.fillRect(16, 16, 220, 64);
+  ctx.fillRect(12, 12, Math.min(320, cw - 24), 70);
   ctx.fillStyle = "#e8e2d0";
-  ctx.font = "16px Georgia";
-  ctx.fillText("Health", 28, 38);
+  ctx.font = "20px Georgia";
+  ctx.fillText("Health", 24, 36);
   ctx.fillStyle = "#3a3024";
-  ctx.fillRect(88, 26, 130, 12);
+  ctx.fillRect(110, 22, 160, 16);
   ctx.fillStyle = player.hp > 35 ? "#8eae52" : "#c4553a";
-  ctx.fillRect(88, 26, 130 * (player.hp / 100), 12);
+  ctx.fillRect(110, 22, 160 * (player.hp / 100), 16);
   ctx.fillStyle = "#e8e2d0";
-  ctx.fillText("Rounds  " + (player.reload > 0 ? "reloading" : player.ammo + " / " + player.mag), 28, 66);
+  ctx.fillText("Rounds  " + (player.reload > 0 ? "reloading" : player.ammo + " / " + player.mag), 24, 66);
   ctx.fillStyle = "rgba(18,16,12,.72)";
-  ctx.fillRect(W - 180, 16, 164, 40);
+  ctx.fillRect(cw - 170, 12, 158, 40);
   ctx.fillStyle = "#e8e2d0";
-  ctx.fillText("Score  " + score, W - 164, 42);
+  ctx.fillText("Score  " + score, cw - 154, 40);
 
   if (msgTimer > 0) {
     ctx.globalAlpha = Math.min(1, msgTimer / 30);
     ctx.font = "42px Georgia";
     ctx.fillStyle = "#f3ead4";
     ctx.textAlign = "center";
-    ctx.fillText(msg, W / 2, 150);
+    ctx.fillText(msg, canvas.width / 2, 120);
     ctx.textAlign = "left";
     ctx.globalAlpha = 1;
   }
 }
 
 function draw() {
-  ctx.save();
+  fitCanvas();
+  updateView();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.setTransform(view.s, 0, 0, view.s, view.ox, view.oy);
   if (shake > 0.4) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
   sky();
   ground();
 
+  if (state === "title") {
+    drawSoldier(145, true, 1, "#e6c56a", null, null);
+  }
   if (state !== "title") {
     enemies.forEach(e => {
       if (!e.alive) return;
-      drawSoldier(e.x, e.crouched, e.x > player.x ? -1 : 1, "#5c4636", e.hp, e.max);
+      drawSoldier(e.x, e.crouched, e.x > player.x ? -1 : 1, "#b5523a", e.hp, e.max);
     });
-    drawSoldier(player.x, player.crouched, player.facing, "#3f4d34", null, null);
+    drawSoldier(player.x, player.crouched, player.facing, "#e6c56a", null, null);
     // aim line when exposed or peeking
     ctx.strokeStyle = "rgba(232,226,208,.35)";
     ctx.setLineDash([3, 5]);
@@ -515,25 +550,26 @@ function draw() {
     ctx.globalAlpha = 1;
   });
 
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   if (state === "play") hud();
-  ctx.restore();
 
-  if (state === "title") overlay("No Man's Land", "Dive the trenches. Climb out only to move and to shoot.", "Click or press Enter");
+  if (state === "title") overlay("No Man's Land", "You are the gold soldier in the near trench.", "Tap to start");
   if (state === "dead") overlay("Cut down", "Score " + score + "   ·   wave " + wave, "Enter to try again");
   if (state === "win") overlay("The line holds", "You cleared the field. Score " + score, "Enter to play again");
 }
 
 function overlay(title, sub, foot) {
-  ctx.fillStyle = "rgba(16,14,10,.55)";
-  ctx.fillRect(0, 0, W, H);
+  const cw = canvas.width, ch = canvas.height;
+  ctx.fillStyle = "rgba(16,14,10,.28)";
+  ctx.fillRect(0, 0, cw, ch * 0.34);
   ctx.fillStyle = "#f4ead6";
   ctx.textAlign = "center";
-  ctx.font = "54px Georgia";
-  ctx.fillText(title, W / 2, H / 2 - 20);
-  ctx.font = "18px Georgia";
-  ctx.fillText(sub, W / 2, H / 2 + 24);
+  ctx.font = Math.max(28, Math.round(cw / 16)) + "px Georgia";
+  ctx.fillText(title, cw / 2, ch * 0.12);
+  ctx.font = Math.max(16, Math.round(cw / 32)) + "px Georgia";
+  ctx.fillText(sub, cw / 2, ch * 0.12 + 36);
   ctx.globalAlpha = 0.75 + Math.sin(Date.now() / 280) * 0.25;
-  ctx.fillText(foot, W / 2, H / 2 + 64);
+  ctx.fillText(foot, cw / 2, ch * 0.12 + 68);
   ctx.globalAlpha = 1;
   ctx.textAlign = "left";
 }
