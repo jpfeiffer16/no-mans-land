@@ -2,22 +2,41 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <title>No Man's Land</title>
 <style>
-  html, body { margin: 0; height: 100%; background: #12140f; color: #e8e2d0; font-family: Georgia, "Times New Roman", serif; }
-  body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
-  h1 { margin: 0; font-weight: 500; letter-spacing: 0.18em; font-size: 18px; text-transform: uppercase; }
-  #wrap { position: relative; box-shadow: 0 20px 60px rgba(0,0,0,.55); }
-  canvas { display: block; background: #2a2418; cursor: crosshair; max-width: 100vw; max-height: 82vh; }
-  #hint { font-size: 14px; opacity: .8; max-width: 920px; text-align: center; line-height: 1.45; }
-  kbd { font-family: inherit; border: 1px solid #6a624e; padding: 0 5px; border-radius: 3px; }
+  html, body { margin: 0; height: 100%; background: #12140f; color: #e8e2d0; font-family: Georgia, "Times New Roman", serif; overflow: hidden; touch-action: none; overscroll-behavior: none; -webkit-user-select: none; user-select: none; }
+  body { display: flex; flex-direction: column; height: 100dvh; }
+  h1 { margin: 0; padding: 8px 12px 0; font-weight: 500; letter-spacing: 0.18em; font-size: 14px; text-transform: uppercase; text-align: center; }
+  #wrap { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+  canvas { display: block; background: #2a2418; cursor: crosshair; width: 100%; height: 100%; object-fit: contain; touch-action: none; }
+  #hint { display: none; }
+  #controls { display: flex; gap: 10px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); background: #1a1814; align-items: stretch; }
+  #controls button {
+    flex: 1; min-height: 72px; font: 600 18px/1.1 Georgia, serif; color: #f4ead6;
+    background: #3a3428; border: 1px solid #6a624e; border-radius: 14px;
+    touch-action: none; -webkit-tap-highlight-color: transparent;
+  }
+  #controls button.held { background: #6d6248; }
+  #fire { flex: 1.4; background: #5c3a28; }
+  @media (min-width: 900px) {
+    #controls { display: none; }
+    #hint { display: block; font-size: 14px; opacity: .8; text-align: center; padding: 8px 16px 12px; }
+    h1 { font-size: 18px; padding-top: 12px; }
+  }
 </style>
 </head>
 <body>
 <h1>No Man's Land</h1>
 <div id="wrap"><canvas id="c" width="1100" height="620"></canvas></div>
-<p id="hint">Move with <kbd>A</kbd> <kbd>D</kbd> or arrows. <kbd>S</kbd> or down dives into a trench. <kbd>W</kbd> or up climbs out. Click or <kbd>Space</kbd> to fire toward the cursor. Stay low or the other side will cut you down. Clear each wave.</p>
+<div id="controls">
+  <button id="btn-left" type="button">Left</button>
+  <button id="btn-down" type="button">Duck</button>
+  <button id="btn-up" type="button">Climb</button>
+  <button id="btn-right" type="button">Right</button>
+  <button id="fire" type="button">Fire</button>
+</div>
+<p id="hint">Move with A D or arrows. S or down dives into a trench. W or up climbs out. Click or Space to fire toward the cursor. On a phone, hold the buttons and tap Fire. Stay low or the other side will cut you down.</p>
 <script>
 const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
@@ -34,13 +53,64 @@ addEventListener("keydown", e => {
 addEventListener("keyup", e => { keys[e.code] = false; });
 
 let mouse = { x: W * 0.7, y: H * 0.45, down: false };
-canvas.addEventListener("mousemove", e => {
+canvas.addEventListener("mousemove", e => { canvasPoint(e.clientX, e.clientY); });
+function canvasPoint(clientX, clientY) {
   const r = canvas.getBoundingClientRect();
-  mouse.x = (e.clientX - r.left) * (W / r.width);
-  mouse.y = (e.clientY - r.top) * (H / r.height);
+  mouse.x = (clientX - r.left) * (W / r.width);
+  mouse.y = (clientY - r.top) * (H / r.height);
+}
+canvas.addEventListener("mousedown", (e) => {
+  canvasPoint(e.clientX, e.clientY);
+  mouse.down = true;
+  if (state !== "play") start();
 });
-canvas.addEventListener("mousedown", () => { mouse.down = true; if (state === "title") start(); });
 canvas.addEventListener("mouseup", () => { mouse.down = false; });
+canvas.addEventListener("touchstart", (e) => {
+  e.preventDefault();
+  const t = e.changedTouches[0];
+  canvasPoint(t.clientX, t.clientY);
+  mouse.down = true;
+  if (state !== "play") start();
+}, { passive: false });
+canvas.addEventListener("touchmove", (e) => {
+  e.preventDefault();
+  const t = e.changedTouches[0];
+  canvasPoint(t.clientX, t.clientY);
+}, { passive: false });
+canvas.addEventListener("touchend", (e) => {
+  e.preventDefault();
+  if (e.touches.length === 0) mouse.down = false;
+}, { passive: false });
+canvas.addEventListener("touchcancel", () => { mouse.down = false; });
+
+function holdButton(el, code) {
+  const down = (e) => {
+    e.preventDefault();
+    keys[code] = true;
+    el.classList.add("held");
+    if (code === "Space" && state !== "play") start();
+  };
+  const up = (e) => {
+    e.preventDefault();
+    keys[code] = false;
+    el.classList.remove("held");
+  };
+  el.addEventListener("touchstart", down, { passive: false });
+  el.addEventListener("touchend", up, { passive: false });
+  el.addEventListener("touchcancel", up, { passive: false });
+  el.addEventListener("mousedown", down);
+  el.addEventListener("mouseup", up);
+  el.addEventListener("mouseleave", up);
+}
+holdButton(document.getElementById("btn-left"), "ArrowLeft");
+holdButton(document.getElementById("btn-down"), "ArrowDown");
+holdButton(document.getElementById("btn-up"), "ArrowUp");
+holdButton(document.getElementById("btn-right"), "ArrowRight");
+holdButton(document.getElementById("fire"), "Space");
+
+addEventListener("touchmove", (e) => { e.preventDefault(); }, { passive: false });
+addEventListener("gesturestart", (e) => { e.preventDefault(); });
+document.addEventListener("contextmenu", (e) => e.preventDefault());
 
 const trenches = [
   { x: 70, w: 150 },
