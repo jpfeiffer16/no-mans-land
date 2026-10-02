@@ -11,18 +11,17 @@
   #wrap { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
   canvas { display: block; background: #2a2418; cursor: crosshair; width: 100%; height: 100%; object-fit: contain; touch-action: none; }
   #hint { display: none; }
-  #controls { display: flex; gap: 10px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); background: #1a1814; align-items: stretch; }
+  #controls { display: flex; gap: 8px; padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); background: #1a1814; align-items: stretch; }
   #controls button {
-    flex: 1; min-height: 72px; font: 600 18px/1.1 Georgia, serif; color: #f4ead6;
+    flex: 1; min-height: 64px; min-width: 0; font: 600 16px/1.1 Georgia, serif; color: #f4ead6;
     background: #3a3428; border: 1px solid #6a624e; border-radius: 14px;
     touch-action: none; -webkit-tap-highlight-color: transparent;
   }
   #controls button.held { background: #6d6248; }
-  #fire { flex: 1.4; background: #5c3a28; }
-  @media (min-width: 900px) {
-    #controls { display: none; }
-    #hint { display: block; font-size: 14px; opacity: .8; text-align: center; padding: 8px 16px 12px; }
-    h1 { font-size: 18px; padding-top: 12px; }
+  #fire { flex: 1.3; background: #5c3a28; }
+  @media (max-height: 500px) {
+    h1 { display: none; }
+    #controls button { min-height: 52px; font-size: 15px; }
   }
 </style>
 </head>
@@ -54,10 +53,33 @@ addEventListener("keyup", e => { keys[e.code] = false; });
 
 let mouse = { x: W * 0.7, y: H * 0.45, down: false };
 canvas.addEventListener("mousemove", e => { canvasPoint(e.clientX, e.clientY); });
+let aimed = false;
 function canvasPoint(clientX, clientY) {
   const r = canvas.getBoundingClientRect();
-  mouse.x = (clientX - r.left) * (W / r.width);
-  mouse.y = (clientY - r.top) * (H / r.height);
+  const scale = Math.min(r.width / W, r.height / H) || 1;
+  const drawnW = W * scale, drawnH = H * scale;
+  const ox = r.left + (r.width - drawnW) / 2;
+  const oy = r.top + (r.height - drawnH) / 2;
+  mouse.x = (clientX - ox) / scale;
+  mouse.y = (clientY - oy) / scale;
+  aimed = true;
+}
+function aimAtNearest() {
+  if (!player) return;
+  let best = null, bestD = 1e9;
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    const d = Math.hypot(e.x - player.x, 0);
+    if (d < bestD) { bestD = d; best = e; }
+  }
+  if (best) {
+    mouse.x = best.x;
+    mouse.y = best.crouched ? 468 : 430;
+    player.facing = best.x >= player.x ? 1 : -1;
+  } else {
+    mouse.x = player.x + player.facing * 240;
+    mouse.y = 450;
+  }
 }
 canvas.addEventListener("mousedown", (e) => {
   canvasPoint(e.clientX, e.clientY);
@@ -234,6 +256,7 @@ function update(dt) {
     player.reload--;
     if (player.reload === 0) player.ammo = player.mag;
   }
+  if (keys.Space && !mouse.down) aimAtNearest();
   if (mouse.down || keys.Space) playerShoot();
 
   if (spawnLeft > 0 && enemies.filter(e => e.alive).length < 4 + Math.floor(wave / 2) && Math.random() < 0.02) {
